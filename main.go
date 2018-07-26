@@ -7,6 +7,7 @@ import (
 	"golang.org/x/crypto/acme"
 
 	goacme "github.com/Jason-ZW/go-acme/acme"
+	"github.com/Jason-ZW/go-acme/config"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,6 +32,14 @@ func main() {
 	if err != nil {
 		logrus.Error(err)
 	}
+
+	// get register
+	accountConfig, err := config.ReadAccountConfig()
+	getReg, err := a.GetReg(registerCtx, accountConfig.Account.URI)
+	if err != nil {
+		logrus.Error(err)
+	}
+	logrus.Info(getReg)
 
 	// request dns challenge
 	authorizeCtx, authorizeCancel := context.Background(), func() {}

@@ -55,3 +55,7 @@ func (a *ACME) CreateCert(ctx context.Context, domain string) error {
 	err = util.GeneratePEM(path+"/cert.crt", pemByte)
 	return err
 }
+
+func(a *ACME) FetchCert(ctx context.Context, uri string) ([][]byte, error) {
+	return a.Client.FetchCert(ctx, uri, Bundle)
+}
