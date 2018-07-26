@@ -6,10 +6,7 @@ import (
 	"golang.org/x/crypto/acme"
 )
 
-func (a *ACME) Register() error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-
+func (a *ACME) Register(ctx context.Context) error {
 	account, err := a.Client.Register(ctx, &acme.Account{Contact: []string{"mailto:zhenyang@rancher.com"}}, acme.AcceptTOS)
 	if err != nil {
 		return err

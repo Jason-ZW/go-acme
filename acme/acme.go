@@ -1,8 +1,6 @@
 package acme
 
 import (
-	"time"
-
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/acme"
 
@@ -11,9 +9,10 @@ import (
 )
 
 const (
-	defaultTimeout     = time.Minute
 	letsencrypt        = "https://acme-v01.api.letsencrypt.org/directory"
 	letsencryptStaging = "https://acme-staging.api.letsencrypt.org/directory"
+
+	challengeDNS = "dns-01"
 )
 
 type ACME struct {
