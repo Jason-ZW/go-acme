@@ -23,7 +23,7 @@ type ACME struct {
 
 func NewClient(directoryURL string) (*ACME, error) {
 	if directoryURL == "" {
-		directoryURL = letsencryptStaging
+		directoryURL = letsencrypt
 	}
 
 	config := config.YAMLToConfig()

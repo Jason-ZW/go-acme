@@ -16,6 +16,7 @@ import (
 type Config struct {
 	ServerPrivateKeyPath string `yaml:"serverPrivateKeyPath"`
 	AccountConfigPath    string `yaml:"accountConfigPath"`
+	CertSavePath         string `yaml:"certSavePath"`
 }
 
 type AccountConfig struct {
@@ -54,4 +55,22 @@ func WriteAccountConfig(a *AccountConfig) error {
 	}
 
 	return ioutil.WriteFile(accountConfigPath, b, 0600)
+}
+
+func ReadAccountConfig() (*AccountConfig, error) {
+	config := YAMLToConfig()
+	accountConfigPath := config.AccountConfigPath
+	if accountConfigPath == "" {
+		return nil, errors.New("accountConfigPath can not be empty")
+	}
+
+	b, err := ioutil.ReadFile(accountConfigPath)
+	if err != nil {
+		return nil, err
+	}
+	accountConfig := &AccountConfig{}
+	if err := json.Unmarshal(b, accountConfig); err != nil {
+		return nil, err
+	}
+	return accountConfig, nil
 }

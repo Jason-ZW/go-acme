@@ -15,7 +15,7 @@ const (
 )
 
 func main() {
-	domain := "cc.api.lytall.com"
+	domain := "ee.api.lytall.com"
 	contact := []string{"mailto:zhenyang@rancher.com"}
 
 	// generate acme client
@@ -39,9 +39,21 @@ func main() {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	if authorization.Status != acme.StatusValid {
-		logrus.Fatalf("domain %s authorization failed", domain)
+
+	if authorization != nil {
+		if authorization.Status != acme.StatusValid {
+			logrus.Fatalf("domain %s authorization failed", domain)
+		}
 	}
 
 	// creating certificate request
+	createCtx, createCancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer createCancel()
+
+	err = a.CreateCert(createCtx, domain)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	// renew certificate
 }
