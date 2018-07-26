@@ -9,5 +9,5 @@ communicate with let's encrypt using acme protocol
 $ ssh-keygen -t rsa -b 4096 -C "<your email>" -f letsencrypt -N ''
 
 # configure config.yml
-serverPrivateKey: <your private key file path>
+serverPrivateKeyPath: <your private key file path>
 ```

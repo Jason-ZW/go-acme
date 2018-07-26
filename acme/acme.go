@@ -28,9 +28,9 @@ func NewClient(directoryURL string) (*ACME, error) {
 
 	config := config.YAMLToConfig()
 
-	privateKeyPath := config.ServerPrivateKey
+	privateKeyPath := config.ServerPrivateKeyPath
 	if privateKeyPath == "" {
-		return nil, errors.New("serverPrivateKey can not be empty")
+		return nil, errors.New("serverPrivateKeyPath can not be empty")
 	}
 
 	a := &ACME{

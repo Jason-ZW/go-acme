@@ -1,15 +1,25 @@
 package config
 
 import (
+	"encoding/json"
 	"io/ioutil"
+	"os"
+	"strings"
 
+	"github.com/pkg/errors"
+	"golang.org/x/crypto/acme"
 	"gopkg.in/yaml.v2"
 
 	"github.com/sirupsen/logrus"
 )
 
 type Config struct {
-	ServerPrivateKey string `yaml:"serverPrivateKey"`
+	ServerPrivateKeyPath string `yaml:"serverPrivateKeyPath"`
+	AccountConfigPath    string `yaml:"accountConfigPath"`
+}
+
+type AccountConfig struct {
+	Account *acme.Account
 }
 
 func YAMLToConfig() *Config {
@@ -25,4 +35,23 @@ func YAMLToConfig() *Config {
 	}
 
 	return config
+}
+
+func WriteAccountConfig(a *AccountConfig) error {
+	b, err := json.MarshalIndent(a, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	config := YAMLToConfig()
+	accountConfigPath := config.AccountConfigPath
+	if accountConfigPath == "" {
+		return errors.New("accountConfigPath can not be empty")
+	}
+
+	if err := os.MkdirAll(accountConfigPath[0:strings.LastIndex(accountConfigPath, "/")], 0700); err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(accountConfigPath, b, 0600)
 }

@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io/ioutil"
-	"net/url"
 
 	"github.com/sirupsen/logrus"
 )
@@ -27,11 +26,4 @@ func LoadServerPrivateKey(file string) *rsa.PrivateKey {
 	}
 
 	return privateKey
-}
-
-func PathToURL(baseURL *url.URL, path string) string {
-	var u url.URL
-	u = *baseURL
-	u.Path = path
-	return u.String()
 }

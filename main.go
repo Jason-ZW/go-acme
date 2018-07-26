@@ -16,6 +16,7 @@ const (
 
 func main() {
 	domain := "cc.api.lytall.com"
+	contact := []string{"mailto:zhenyang@rancher.com"}
 
 	// generate acme client
 	a, err := goacme.NewClient("")
@@ -26,8 +27,7 @@ func main() {
 	// register server
 	registerCtx, registerCancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer registerCancel()
-
-	err = a.Register(registerCtx)
+	err = a.Register(registerCtx, contact)
 	if err != nil {
 		logrus.Error(err)
 	}
@@ -45,4 +45,3 @@ func main() {
 
 	// creating certificate request
 }
-
