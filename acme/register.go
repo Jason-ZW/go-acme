@@ -50,6 +50,7 @@ func (a *ACME) UpdateReg(ctx context.Context, uri string, contact []string) (*ac
 	if err != nil {
 		return nil, err
 	}
+
 	a.Account = updateAccount
 
 	return updateAccount, nil

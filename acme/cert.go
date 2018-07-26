@@ -2,16 +2,19 @@ package acme
 
 import (
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/acme"
 
-	"encoding/pem"
 	"github.com/Jason-ZW/go-acme/config"
 	"github.com/Jason-ZW/go-acme/util"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -19,17 +22,17 @@ const (
 	Bundle = true
 )
 
-func (a *ACME) CreateCert(ctx context.Context, domain string) error {
+func (a *ACME) CreateCert(ctx context.Context, domain string) (string, error) {
 	config := config.YAMLToConfig()
 	certSavePath := config.CertSavePath
 	if certSavePath == "" {
-		return errors.New("certSavePath can not be empty")
+		return "", errors.New("certSavePath can not be empty")
 	}
 
 	path := certSavePath + domain
 	certKey, err := util.LoadOrGenerateKey(path + "/private.key")
 	if err != nil {
-		return err
+		return "", err
 	}
 	certRequest := &x509.CertificateRequest{
 		Subject:  pkix.Name{CommonName: domain},
@@ -38,13 +41,15 @@ func (a *ACME) CreateCert(ctx context.Context, domain string) error {
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, certRequest, certKey)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	der, _, err := a.Client.CreateCert(ctx, csr, Expiry, Bundle)
+	der, certURL, err := a.Client.CreateCert(ctx, csr, Expiry, Bundle)
 	if err != nil {
-		return err
+		return "", err
 	}
+
+	logrus.Infof("Let's encrypt domain %s's cert permanent url is %s", domain, certURL)
 
 	var pemByte []byte
 	for _, b := range der {
@@ -53,9 +58,13 @@ func (a *ACME) CreateCert(ctx context.Context, domain string) error {
 	}
 
 	err = util.GeneratePEM(path+"/cert.crt", pemByte)
-	return err
+	return certURL, err
 }
 
-func(a *ACME) FetchCert(ctx context.Context, uri string) ([][]byte, error) {
+func (a *ACME) FetchCert(ctx context.Context, uri string) ([][]byte, error) {
 	return a.Client.FetchCert(ctx, uri, Bundle)
+}
+
+func (a *ACME) RevokeCert(ctx context.Context, key crypto.Signer, cert []byte, reason acme.CRLReasonCode) error {
+	return a.Client.RevokeCert(ctx, key, cert, reason)
 }
