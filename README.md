@@ -13,3 +13,10 @@ serverPrivateKeyPath: <your private key file path>
 accountConfigPath: <which place you want to save account info>
 certSavePath: <which place you want to save certs>
 ```
+
+## feature
+- register new account
+- request and valid dns challenge
+- request certificate
+- renew certificate
+- revoke certificate
