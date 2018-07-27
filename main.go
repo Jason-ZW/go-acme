@@ -82,6 +82,14 @@ func main() {
 
 	logrus.Info(string(pemByte))
 
+	// renew certificate
+	renewCtx, renewCancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer renewCancel()
+	newCertURL, err := a.RenewCert(renewCtx, pemByte, domain)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
 	// revoke certificate
 	revokeCtx, revokeCancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer revokeCancel()
@@ -94,7 +102,7 @@ func main() {
 	// fetch certificate
 	cert2, err := a.FetchCert(fetchCtx, certURL)
 	if err != nil {
-		logrus.Fatal(cert2)
+		logrus.Errorf("can't fetch domain cert with url %s has been revoked", certURL)
 	}
 
 	var pemByte2 []byte
@@ -105,4 +113,24 @@ func main() {
 
 	logrus.Info(string(pemByte2))
 
+	// revoke certificate which we had renewed
+	if newCertURL != "" {
+		cert3, err := a.FetchCert(fetchCtx, newCertURL)
+		if err != nil {
+			logrus.Fatal(cert3)
+		}
+
+		var pemByte3 []byte
+		for _, b := range cert3 {
+			b = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: b})
+			pemByte3 = append(pemByte3, b...)
+		}
+
+		logrus.Info(string(pemByte3))
+
+		err = a.RevokeCert(revokeCtx, nil, cert3[0], acme.CRLReasonSuperseded)
+		if err != nil {
+			logrus.Error(err)
+		}
+	}
 }

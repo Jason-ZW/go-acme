@@ -17,11 +17,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	Expiry = 90 * 24 * time.Hour
-	Bundle = true
-)
-
 func (a *ACME) CreateCert(ctx context.Context, domain string) (string, error) {
 	config := config.YAMLToConfig()
 	certSavePath := config.CertSavePath
@@ -44,7 +39,7 @@ func (a *ACME) CreateCert(ctx context.Context, domain string) (string, error) {
 		return "", err
 	}
 
-	der, certURL, err := a.Client.CreateCert(ctx, csr, Expiry, Bundle)
+	der, certURL, err := a.Client.CreateCert(ctx, csr, util.Expiry, util.Bundle)
 	if err != nil {
 		return "", err
 	}
@@ -62,9 +57,25 @@ func (a *ACME) CreateCert(ctx context.Context, domain string) (string, error) {
 }
 
 func (a *ACME) FetchCert(ctx context.Context, uri string) ([][]byte, error) {
-	return a.Client.FetchCert(ctx, uri, Bundle)
+	return a.Client.FetchCert(ctx, uri, util.Bundle)
 }
 
 func (a *ACME) RevokeCert(ctx context.Context, key crypto.Signer, cert []byte, reason acme.CRLReasonCode) error {
 	return a.Client.RevokeCert(ctx, key, cert, reason)
+}
+
+func (a *ACME) RenewCert(ctx context.Context, b []byte, domain string) (string, error) {
+	certs, err := util.ParsePEMBundle(b)
+	if err != nil {
+		logrus.Error(err)
+	}
+
+	needsUpdate := util.NeedsUpdate(certs[0])
+	if needsUpdate {
+		certURL, err := a.CreateCert(ctx, domain)
+		return certURL, err
+	}
+	valid := int(certs[0].NotAfter.Sub(time.Now().UTC()).Hours())
+	logrus.Infof("domain %s certificate is valid, %d hours left, no need renew.", domain, valid)
+	return "", nil
 }

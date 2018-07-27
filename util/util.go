@@ -11,10 +11,16 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	Expiry = 90 * 24 * time.Hour
+	Bundle = true
 )
 
 func LoadServerPrivateKey(file string) *rsa.PrivateKey {
@@ -97,4 +103,41 @@ func GeneratePEM(path string, data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func NeedsUpdate(crt *x509.Certificate) bool {
+	// If there's an error, we assume the cert is broken, and needs update.
+	// <= 60 days or 0 days left, renew certificate.
+	// 60 days is let's encrypt recommend
+	valid := int(crt.NotAfter.Sub(time.Now().UTC()).Hours())
+	if valid <= 24*60 || valid <= 0 {
+		return true
+	}
+	return false
+}
+
+func ParsePEMBundle(bundle []byte) ([]*x509.Certificate, error) {
+	var certificates []*x509.Certificate
+	var certDERBlock *pem.Block
+
+	for {
+		certDERBlock, bundle = pem.Decode(bundle)
+		if certDERBlock == nil {
+			break
+		}
+
+		if certDERBlock.Type == "CERTIFICATE" {
+			cert, err := x509.ParseCertificate(certDERBlock.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			certificates = append(certificates, cert)
+		}
+	}
+
+	if len(certificates) == 0 {
+		return nil, errors.New("no certificates were found while parsing the bundle")
+	}
+
+	return certificates, nil
 }
