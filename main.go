@@ -65,6 +65,15 @@ func main() {
 		logrus.Fatal(err)
 	}
 
+	// revoke authorize
+	revokeAuthzCtx, revokeAuthzCancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer revokeAuthzCancel()
+
+	err = a.RevokeAuthorize(revokeAuthzCtx, authorization.URI)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
 	// fetch certificate
 	fetchCtx, fetchCancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer fetchCancel()

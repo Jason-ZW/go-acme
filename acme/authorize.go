@@ -15,7 +15,7 @@ func (a *ACME) Authorize(ctx context.Context, domain string) (*acme.Authorizatio
 	}
 
 	if z.Status == acme.StatusValid {
-		return nil, nil
+		return z, nil
 	}
 
 	var challenge *acme.Challenge
@@ -51,4 +51,8 @@ Press Enter to Continue`, domain, token)
 
 	authorization, err := a.Client.WaitAuthorization(ctx, z.URI)
 	return authorization, err
+}
+
+func (a *ACME) RevokeAuthorize(ctx context.Context, uri string) error {
+	return a.Client.RevokeAuthorization(ctx, uri)
 }

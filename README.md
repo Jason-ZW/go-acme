@@ -20,3 +20,4 @@ certSavePath: <which place you want to save certs>
 - request certificate
 - renew certificate
 - revoke certificate
+- revoke authorize
