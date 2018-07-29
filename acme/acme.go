@@ -1,44 +1,71 @@
 package acme
 
 import (
-	"github.com/pkg/errors"
-	"golang.org/x/crypto/acme"
+	"crypto"
+	"net/http"
+	"sync"
 
 	"github.com/Jason-ZW/go-acme/config"
-	"github.com/Jason-ZW/go-acme/util"
-)
-
-const (
-	letsencrypt        = "https://acme-v01.api.letsencrypt.org/directory"
-	letsencryptStaging = "https://acme-staging.api.letsencrypt.org/directory"
-
-	challengeDNS = "dns-01"
 )
 
 type ACME struct {
-	Client  *acme.Client
-	Account *acme.Account
-	config  config.Config
+	Client *Client
+
+	Config *config.Config
 }
 
-func NewClient(directoryURL string) (*ACME, error) {
-	if directoryURL == "" {
-		directoryURL = letsencrypt
-	}
+type Client struct {
+	Directory Directory
+	serverKey crypto.Signer
+	Kid       string
 
-	config := config.YAMLToConfig()
+	HTTPClient *http.Client
 
-	privateKeyPath := config.ServerPrivateKeyPath
-	if privateKeyPath == "" {
-		return nil, errors.New("serverPrivateKeyPath can not be empty")
-	}
+	nonceMux sync.Mutex
+	NonceMap map[string]struct{}
+}
 
-	a := &ACME{
-		Client: &acme.Client{
-			Key:          util.LoadServerPrivateKey(privateKeyPath),
-			DirectoryURL: directoryURL,
-		},
-	}
+type Directory struct {
+	NewAccount string
+	NewNonce   string
+	RevokeCert string
+	NewOrder   string
+	KeyChange  string
 
-	return a, nil
+	Meta map[string]interface{}
+}
+
+type Account struct {
+	Status  string
+	Contact []string
+}
+
+type Identifier struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type Order struct {
+	Status         string
+	Expires        string
+	Identifiers    []Identifier
+	Authorizations []string
+	Finalize       string
+	Certificate    string
+}
+
+type Authorization struct {
+	Status     string
+	Expires    string
+	Identifier Identifier
+	Challenges []Challenge
+}
+
+type Challenge struct {
+	Type             string
+	URL              string
+	Status           string
+	Validated        string
+	Token            string
+	KeyAuthorization string
 }
