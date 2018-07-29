@@ -3,95 +3,113 @@ package util
 import (
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/rsa"
-	"encoding/base64"
-	"fmt"
-	"math/big"
-
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"strings"
+
 	"github.com/pkg/errors"
+
+	"github.com/sirupsen/logrus"
 )
 
-var (
-	unSupportedErr = errors.New("acme: unknown key type; only RSA and ECDSA are supported")
-)
-
-// JwsHasher indicates suitable JWS algorithm name and a hash function
-// to use for signing a digest with the provided key.
-// It returns ("", 0) if the key is not supported.
-func JwsHasher(key crypto.Signer) (string, crypto.Hash) {
-	switch key := key.(type) {
-	case *rsa.PrivateKey:
-		return "RS256", crypto.SHA256
-	case *ecdsa.PrivateKey:
-		switch key.Params().Name {
-		case "P-256":
-			return "ES256", crypto.SHA256
-		case "P-384":
-			return "ES384", crypto.SHA384
-		case "P-521":
-			return "ES512", crypto.SHA512
-		}
+func LoadServerPrivateKey(file string) (crypto.Signer, error) {
+	b, err := ioutil.ReadFile(file)
+	if err != nil {
+		logrus.Fatalf("can not read server privateKey file: %v", err)
 	}
-	return "", 0
+
+	for {
+		d, p := pem.Decode(b)
+		if d == nil {
+			logrus.Fatalf("no valid block found in %q", file)
+		}
+
+		if d.Type == "RSA PRIVATE KEY" {
+			return x509.ParsePKCS1PrivateKey(d.Bytes)
+		}
+
+		if d.Type == "EC PRIVATE KEY" {
+			return x509.ParseECPrivateKey(d.Bytes)
+		}
+		b = p
+	}
 }
 
-func JwkEncode(pub crypto.PublicKey) (string, error) {
-	switch pub := pub.(type) {
-	case *rsa.PublicKey:
-		// https://tools.ietf.org/html/rfc7518#section-6.3.1
-		n := pub.N
-		e := big.NewInt(int64(pub.E))
-		// Field order is important.
-		// See https://tools.ietf.org/html/rfc7638#section-3.3 for details.
-		return fmt.Sprintf(`{"e":"%s","kty":"RSA","n":"%s"}`,
-			base64.RawURLEncoding.EncodeToString(e.Bytes()),
-			base64.RawURLEncoding.EncodeToString(n.Bytes()),
-		), nil
-	case *ecdsa.PublicKey:
-		// https://tools.ietf.org/html/rfc7518#section-6.2.1
-		p := pub.Curve.Params()
-		n := p.BitSize / 8
-		if p.BitSize%8 != 0 {
-			n++
-		}
-		x := pub.X.Bytes()
-		if n > len(x) {
-			x = append(make([]byte, n-len(x)), x...)
-		}
-		y := pub.Y.Bytes()
-		if n > len(y) {
-			y = append(make([]byte, n-len(y)), y...)
-		}
-		// Field order is important.
-		// See https://tools.ietf.org/html/rfc7638#section-3.3 for details.
-		return fmt.Sprintf(`{"crv":"%s","kty":"EC","x":"%s","y":"%s"}`,
-			p.Name,
-			base64.RawURLEncoding.EncodeToString(x),
-			base64.RawURLEncoding.EncodeToString(y),
-		), nil
-	}
-	return "", unSupportedErr
-}
-
-func JwsSign(key crypto.Signer, hash crypto.Hash, digest []byte) ([]byte, error) {
-	switch key := key.(type) {
-	case *rsa.PrivateKey:
-		return key.Sign(rand.Reader, digest, hash)
-	case *ecdsa.PrivateKey:
-		r, s, err := ecdsa.Sign(rand.Reader, key, digest)
+func LoadOrGenerateKey(file string) (crypto.Signer, error) {
+	key, err := LoadKey(file)
+	if err == nil {
+		return key, err
+	} else {
+		csdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
+			logrus.Error(err)
 			return nil, err
 		}
-		rb, sb := r.Bytes(), s.Bytes()
-		size := key.Params().BitSize / 8
-		if size%8 > 0 {
-			size++
-		}
-		sig := make([]byte, size*2)
-		copy(sig[size-len(rb):], rb)
-		copy(sig[size*2-len(sb):], sb)
-		return sig, nil
+		return csdsaKey, GenerateKey(file, csdsaKey)
 	}
-	return nil, unSupportedErr
+}
+
+func LoadKey(file string) (crypto.Signer, error) {
+	bytes, err := ioutil.ReadFile(file)
+	if err != nil {
+		logrus.Infof("open %s: no such file or directory, will re-generate key file", file)
+		return nil, err
+	}
+
+	block, _ := pem.Decode(bytes)
+	if block == nil {
+		logrus.Errorf("failed to decode pem file: no key found")
+		return nil, errors.Errorf("unsupported type: %s", block.Type)
+	}
+
+	switch block.Type {
+	case "RSA PRIVATE KEY":
+		return x509.ParsePKCS1PrivateKey(block.Bytes)
+	case "EC PRIVATE KEY":
+		return x509.ParseECPrivateKey(block.Bytes)
+	default:
+		logrus.Errorf("unsupported type: %s", block.Type)
+		return nil, errors.Errorf("unsupported type: %s", block.Type)
+	}
+}
+
+func GenerateKey(path string, k *ecdsa.PrivateKey) error {
+	os.MkdirAll(path[0:strings.LastIndex(path, "/")], 0700)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+	bytes, err := x509.MarshalECPrivateKey(k)
+	if err != nil {
+		return err
+	}
+	b := &pem.Block{Type: "EC PRIVATE KEY", Bytes: bytes}
+	if err := pem.Encode(f, b); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+func DecodeResponse(res *http.Response, v interface{}) error {
+	by, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if len(by) == 0 {
+		return nil
+	}
+
+	if err := json.Unmarshal(by, v); err != nil {
+		return err
+	}
+
+	return nil
 }

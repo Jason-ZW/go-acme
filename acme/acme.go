@@ -1,71 +1,151 @@
 package acme
 
 import (
-	"crypto"
+	"context"
+	"encoding/json"
 	"net/http"
-	"sync"
+	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/Jason-ZW/go-acme/config"
+	"github.com/Jason-ZW/go-acme/util"
 )
 
-type ACME struct {
-	Client *Client
+const (
+	letsencrypt        = "https://acme-v02.api.letsencrypt.org/directory"
+	letsencryptStaging = "https://acme-staging-v02.api.letsencrypt.org/directory"
 
-	Config *config.Config
+	challengeDNS = "dns-01"
+
+	// Max number of collected nonces kept in memory.
+	// Expect usual peak of 1 or 2.
+	maxNonces      = 100
+	defaultTimeout = 1 * time.Minute
+)
+
+// timeNow is useful for testing for fixed current time.
+var timeNow = time.Now
+
+func NewACMEClient(directoryURL string) (*ACME, error) {
+	if directoryURL == "" {
+		directoryURL = letsencrypt
+	}
+
+	config := config.YAMLToConfig()
+
+	privateKeyPath := config.ServerPrivateKeyPath
+	if privateKeyPath == "" {
+		return nil, errors.New("server private key path can not be empty")
+	}
+
+	key, err := util.LoadServerPrivateKey(privateKeyPath)
+	if err != nil {
+		return nil, err
+	}
+
+	a := &ACME{
+		Key:          key,
+		DirectoryURL: directoryURL,
+		HTTPClient:   http.DefaultClient,
+	}
+
+	// invoke a.Discover() function in order to add dir information.
+	discoverCtx, discoverCancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer discoverCancel()
+
+	_, err = a.Discover(discoverCtx)
+	if err != nil {
+		return a, err
+	}
+
+	return a, nil
 }
 
-type Client struct {
-	Directory Directory
-	serverKey crypto.Signer
-	Kid       string
+func (c *ACME) Discover(ctx context.Context) (Directory, error) {
+	c.dirMu.Lock()
+	defer c.dirMu.Unlock()
+	if c.Dir != nil {
+		return *c.Dir, nil
+	}
 
-	HTTPClient *http.Client
+	res, err := c.get(ctx, c.DirectoryURL, wantStatus(http.StatusOK))
+	if err != nil {
+		return Directory{}, err
+	}
+	defer res.Body.Close()
+	c.addNonce(res.Header)
 
-	nonceMux sync.Mutex
-	NonceMap map[string]struct{}
+	dir := &Directory{}
+	if err := json.NewDecoder(res.Body).Decode(&dir); err != nil {
+		return Directory{}, err
+	}
+
+	c.Dir = dir
+
+	return *dir, nil
 }
 
-type Directory struct {
-	NewAccount string
-	NewNonce   string
-	RevokeCert string
-	NewOrder   string
-	KeyChange  string
-
-	Meta map[string]interface{}
+// popNonce returns a nonce value previously stored with c.addNonce
+// or fetches a fresh one from the given URL.
+func (c *ACME) popNonce(ctx context.Context, url string) (string, error) {
+	c.noncesMu.Lock()
+	defer c.noncesMu.Unlock()
+	if len(c.nonces) == 0 {
+		return c.fetchNonce(ctx, url)
+	}
+	var nonce string
+	for nonce = range c.nonces {
+		delete(c.nonces, nonce)
+		break
+	}
+	return nonce, nil
 }
 
-type Account struct {
-	Status  string
-	Contact []string
+// clearNonces clears any stored nonces
+func (c *ACME) clearNonces() {
+	c.noncesMu.Lock()
+	defer c.noncesMu.Unlock()
+	c.nonces = make(map[string]struct{})
 }
 
-type Identifier struct {
-	Type  string `json:"type"`
-	Value string `json:"value"`
+// addNonce stores a nonce value found in h (if any) for future use.
+func (c *ACME) addNonce(h http.Header) {
+	v := nonceFromHeader(h)
+	if v == "" {
+		return
+	}
+	c.noncesMu.Lock()
+	defer c.noncesMu.Unlock()
+	if len(c.nonces) >= maxNonces {
+		return
+	}
+	if c.nonces == nil {
+		c.nonces = make(map[string]struct{})
+	}
+	c.nonces[v] = struct{}{}
 }
 
-type Order struct {
-	Status         string
-	Expires        string
-	Identifiers    []Identifier
-	Authorizations []string
-	Finalize       string
-	Certificate    string
+func (c *ACME) fetchNonce(ctx context.Context, url string) (string, error) {
+	r, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := c.doNoRetry(ctx, r)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	nonce := nonceFromHeader(resp.Header)
+	if nonce == "" {
+		if resp.StatusCode > 299 {
+			return "", responseError(resp)
+		}
+		return "", errors.New("acme: nonce not found")
+	}
+	return nonce, nil
 }
 
-type Authorization struct {
-	Status     string
-	Expires    string
-	Identifier Identifier
-	Challenges []Challenge
-}
-
-type Challenge struct {
-	Type             string
-	URL              string
-	Status           string
-	Validated        string
-	Token            string
-	KeyAuthorization string
+func nonceFromHeader(h http.Header) string {
+	return h.Get("Replay-Nonce")
 }
