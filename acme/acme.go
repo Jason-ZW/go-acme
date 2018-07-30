@@ -78,12 +78,47 @@ func (c *ACME) Discover(ctx context.Context) (Directory, error) {
 
 	dir := &Directory{}
 	if err := json.NewDecoder(res.Body).Decode(&dir); err != nil {
-		return Directory{}, err
+		return *dir, err
 	}
 
 	c.Dir = dir
 
 	return *dir, nil
+}
+
+func (c *ACME) NewAccount(ctx context.Context, contact []string) (*Account, error) {
+	req := struct {
+		Contact              []string `json:"contact,omitempty"`
+		TermsOfServiceAgreed bool     `json:"termsOfServiceAgreed"`
+	}{
+		Contact:              contact,
+		TermsOfServiceAgreed: true,
+	}
+
+	res, err := c.post(ctx, c.Key, c.Dir.NewAccount, req, wantStatus(
+		http.StatusOK,       // updates and deletes
+		http.StatusCreated,  // new account creation
+		http.StatusAccepted, // Let's Encrypt divergent implementation
+	))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	account := &Account{}
+
+	if err := util.DecodeResponse(res, &account); err != nil {
+		return account, err
+	}
+
+	location := res.Header.Get("Location")
+	if location == "" {
+		return account, errors.New("location can not be empty")
+	}
+
+	c.Kid = location
+
+	return account, nil
 }
 
 // popNonce returns a nonce value previously stored with c.addNonce

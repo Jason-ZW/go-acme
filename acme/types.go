@@ -67,6 +67,13 @@ type DirectoryMeta struct {
 	ExternalAccountRequired bool     `json:"externalAccountRequired"`
 }
 
+type Account struct {
+	Status               string
+	Contact              []string
+	TermsOfServiceAgreed bool
+	Orders               string
+}
+
 // Error is an ACME error, defined in Problem Details for HTTP APIs doc
 // http://tools.ietf.org/html/draft-ietf-appsawg-http-problem.
 type Error struct {
