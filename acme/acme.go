@@ -95,7 +95,40 @@ func (c *ACME) NewAccount(ctx context.Context, contact []string) (*Account, erro
 		TermsOfServiceAgreed: true,
 	}
 
-	res, err := c.post(ctx, c.Key, c.Dir.NewAccount, req, wantStatus(
+	res, err := c.post(ctx, "", c.Key, c.Dir.NewAccount, req, wantStatus(
+		http.StatusOK,       // updates and deletes
+		http.StatusCreated,  // new account creation
+		http.StatusAccepted, // Let's Encrypt divergent implementation
+	))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	account := &Account{}
+
+	if err := util.DecodeResponse(res, &account); err != nil {
+		return account, err
+	}
+
+	location := res.Header.Get("Location")
+	if location == "" {
+		return account, errors.New("location can not be empty")
+	}
+
+	c.Kid = location
+
+	return account, nil
+}
+
+func (c *ACME) FetchAccount(ctx context.Context) (*Account, error) {
+	req := struct {
+		OnlyReturnExisting bool `json:"onlyReturnExisting"`
+	}{
+		OnlyReturnExisting: true,
+	}
+
+	res, err := c.post(ctx, "", c.Key, c.Dir.NewAccount, req, wantStatus(
 		http.StatusOK,       // updates and deletes
 		http.StatusCreated,  // new account creation
 		http.StatusAccepted, // Let's Encrypt divergent implementation

@@ -162,10 +162,10 @@ func (c *ACME) get(ctx context.Context, url string, ok resOkay) (*http.Response,
 // post retries unsuccessful attempts according to c.RetryBackoff
 // until the context is done or a non-retriable error is received.
 // It uses postNoRetry to make individual requests.
-func (c *ACME) post(ctx context.Context, key crypto.Signer, url string, body interface{}, ok resOkay) (*http.Response, error) {
+func (c *ACME) post(ctx context.Context, kid string, key crypto.Signer, url string, body interface{}, ok resOkay) (*http.Response, error) {
 	retry := c.retryTimer()
 	for {
-		res, req, err := c.postNoRetry(ctx, key, url, body)
+		res, req, err := c.postNoRetry(ctx, kid, key, url, body)
 		if err != nil {
 			return nil, err
 		}
@@ -195,12 +195,12 @@ func (c *ACME) post(ctx context.Context, key crypto.Signer, url string, body int
 // postNoRetry signs the body with the given key and POSTs it to the provided url.
 // The body argument must be JSON-serializable.
 // It is used by c.post to retry unsuccessful attempts.
-func (c *ACME) postNoRetry(ctx context.Context, key crypto.Signer, url string, body interface{}) (*http.Response, *http.Request, error) {
+func (c *ACME) postNoRetry(ctx context.Context, kid string, key crypto.Signer, url string, body interface{}) (*http.Response, *http.Request, error) {
 	nonce, err := c.popNonce(ctx, url)
 	if err != nil {
 		return nil, nil, err
 	}
-	b, err := jwsEncodeJSON(body, key, c.Kid, nonce, url)
+	b, err := jwsEncodeJSON(body, key, kid, nonce, url)
 	if err != nil {
 		return nil, nil, err
 	}

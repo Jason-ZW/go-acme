@@ -28,19 +28,17 @@ var ErrUnsupportedKey = errors.New("acme: unknown key type; only RSA and ECDSA a
 func jwsEncodeJSON(claimset interface{}, key crypto.Signer, kid, nonce, url string) ([]byte, error) {
 	alg, hasher := jwsHasher(key)
 	if alg == "" {
-		return nil, errors.New("Unsupported.Key")
+		return nil, ErrUnsupportedKey
 	}
 
 	var header string
 	if kid != "" {
 		header = fmt.Sprintf(`{"alg":%q,"kid":%q,"nonce":%q,"url":%q}`, alg, kid, nonce, url)
-
 	} else {
 		jwk, err := jwkEncode(key.Public())
 		if err != nil {
 			return nil, err
 		}
-
 		header = fmt.Sprintf(`{"alg":%q,"jwk":%s,"nonce":%q,"url":%q}`, alg, jwk, nonce, url)
 	}
 

@@ -25,5 +25,12 @@ func main() {
 		logrus.Fatalf("new account error, reason: %v", err)
 	}
 
-	logrus.Infof("acme account initialize success. ACME Account Info: %v", account)
+	logrus.Infof("acme account initialize success. ACME Account Info: %v, KID: %s", account, a.Kid)
+
+	fetchAccount, err := a.FetchAccount(accountCtx)
+	if err != nil {
+		logrus.Fatalf("fetch account error, reason: %v", err)
+	}
+
+	logrus.Infof("acme account initialize success. ACME Account Info: %v, KID: %s", fetchAccount, a.Kid)
 }
