@@ -97,6 +97,13 @@ func GenerateKey(path string, k *ecdsa.PrivateKey) error {
 	return f.Close()
 }
 
+func GeneratePEM(path string, data string) error {
+	if err := ioutil.WriteFile(path, []byte(data), 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
 func DecodeResponse(res *http.Response, v interface{}) error {
 	by, err := ioutil.ReadAll(res.Body)
 	if err != nil {

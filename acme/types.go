@@ -10,6 +10,15 @@ import (
 	"github.com/Jason-ZW/go-acme/config"
 )
 
+// ACME server response statuses used to describe Authorization and Challenge states.
+const (
+	StatusUnknown    = "unknown"
+	StatusPending    = "pending"
+	StatusProcessing = "processing"
+	StatusValid      = "valid"
+	StatusInvalid    = "invalid"
+)
+
 type ACME struct {
 	HTTPClient *http.Client
 
@@ -99,6 +108,14 @@ type Authorization struct {
 }
 
 type Challenge struct {
+	Type             string `json:"type"`
+	URL              string `json:"url"`
+	Status           string `json:"status"`
+	Validated        string `json:"validated"`
+	Token            string `json:"token"`
+	KeyAuthorization string `json:"keyAuthorization"`
+
+	Error error `json:"error"`
 }
 
 // Error is an ACME error, defined in Problem Details for HTTP APIs doc
@@ -118,6 +135,31 @@ type Error struct {
 
 func (e *Error) Error() string {
 	return fmt.Sprintf("%d %s: %s", e.StatusCode, e.ProblemType, e.Detail)
+}
+
+// wireChallenge is ACME JSON challenge representation.
+type wireChallenge struct {
+	URL    string `json:"url"`
+	Type   string
+	Token  string
+	Status string
+	Error  *wireError
+}
+
+func (c *wireChallenge) challenge() *Challenge {
+	v := &Challenge{
+		URL:    c.URL,
+		Type:   c.Type,
+		Token:  c.Token,
+		Status: c.Status,
+	}
+	if v.Status == "" {
+		v.Status = StatusPending
+	}
+	if c.Error != nil {
+		v.Error = c.Error.error(nil)
+	}
+	return v
 }
 
 // wireError is a subset of fields of the Problem Details object

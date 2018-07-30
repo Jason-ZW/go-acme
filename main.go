@@ -42,14 +42,36 @@ func main() {
 	orderCtx, orderCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer orderCancel()
 
-	order, err := a.NewOrder(orderCtx, domains)
+	oid, order, err := a.NewOrder(orderCtx, domains)
 	if err != nil {
 		logrus.Fatalf("new order error, reason: %v", err)
 	}
 
 	logrus.Infof("acme order initialize success. ACME Order Info: %v, KID: %s", order, a.Kid)
 
-	// Fetch ACME Account with given URL
+	// Authorization and Challenge
+	authorizationCtx, authorizationCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer authorizationCancel()
+
+	authorization, err := a.Authorization(authorizationCtx, order)
+	if err != nil {
+		logrus.Fatalf("authorization error, reason: %v", err)
+	}
+
+	logrus.Infof("acme authorization success. ACME Authorization Info: %v, KID: %s", authorization, a.Kid)
+
+	// Finalize ACME Order
+	finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer finalizeCancel()
+
+	err = a.Finalize(finalizeCtx, order, oid, domains)
+	if err != nil {
+		logrus.Fatalf("finalize order %s error, reason: %v", oid, err)
+	}
+
+	logrus.Infof("acme finalize success. KID: %s", a.Kid)
+
+	// Fetch ACME Account with given URL, If has valid order Account will list them
 	accountFatch, err := a.FetchAccount(accountCtx, accountURL)
 	if err != nil {
 		logrus.Fatalf("fetch account with given url %s error, reason: %v", accountURL, err)

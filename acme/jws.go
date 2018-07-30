@@ -158,6 +158,6 @@ func JWKThumbprint(pub crypto.PublicKey) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	b := sha256.Sum256([]byte(jwk))
-	return base64.RawURLEncoding.EncodeToString(b[:]), nil
+	by := sha256.Sum256([]byte(jwk))
+	return base64.RawURLEncoding.EncodeToString(by[:]), nil
 }
