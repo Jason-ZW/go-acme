@@ -9,15 +9,6 @@ communicate with let's encrypt using acme protocol, temporary only support DNS-C
 $ ssh-keygen -t rsa -b 4096 -C "<your email>" -f letsencrypt -N ''
 
 # configure config.yml
-serverPrivateKeyPath: <your private key file path>
-accountConfigPath: <which place you want to save account info>
 certSavePath: <which place you want to save certs>
+serverPrivateKeyPath: <your private key file path>
 ```
-
-## feature
-- register new account
-- request and valid dns challenge
-- request certificate
-- renew certificate
-- revoke certificate
-- revoke authorize

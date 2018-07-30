@@ -1,3 +1,2 @@
-serverPrivateKeyPath: /etc/go-acme/letsencrypt
-accountConfigPath: /etc/go-acme/accountconfig
 certSavePath: /etc/go-acme/
+serverPrivateKeyPath: /etc/go-acme/letsencrypt
