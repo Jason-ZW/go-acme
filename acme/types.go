@@ -68,10 +68,37 @@ type DirectoryMeta struct {
 }
 
 type Account struct {
-	Status               string
-	Contact              []string
-	TermsOfServiceAgreed bool
-	Orders               string
+	Status               string   `json:"status"`
+	Contact              []string `json:"contact"`
+	TermsOfServiceAgreed bool     `json:"termsOfServiceAgreed"`
+	Orders               string   `json:"orders"`
+}
+
+type Order struct {
+	Status         string       `json:"status"`
+	Expires        string       `json:"expires"`
+	Identifiers    []Identifier `json:"identifiers"`
+	NotBefore      string       `json:"notBefore"`
+	NotAfter       string       `json:"notAfter"`
+	Authorizations []string     `json:"authorizations"`
+	Finalize       string       `json:"finalize"`
+	Certificate    string       `json:"certificate"`
+}
+
+type Identifier struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type Authorization struct {
+	Identifier Identifier  `json:"identifier"`
+	Status     string      `json:"status"`
+	Expires    string      `json:"expires"`
+	Challenges []Challenge `json:"challenges"`
+	Wildcard   bool        `json:"wildcard"`
+}
+
+type Challenge struct {
 }
 
 // Error is an ACME error, defined in Problem Details for HTTP APIs doc

@@ -29,7 +29,7 @@ var timeNow = time.Now
 
 func NewACMEClient(directoryURL string) (*ACME, error) {
 	if directoryURL == "" {
-		directoryURL = letsencrypt
+		directoryURL = letsencryptStaging
 	}
 
 	config := config.YAMLToConfig()
@@ -154,6 +154,30 @@ func (c *ACME) FetchAccountURL(ctx context.Context) (string, error) {
 	return location, nil
 }
 
+func (c *ACME) FetchAccount(ctx context.Context, url string) (*Account, error) {
+	if url == "" {
+		url = c.Kid
+	}
+	req := struct {}{}
+
+	res, err := c.post(ctx, c.Kid, c.Key, url, req, wantStatus(
+		http.StatusOK,       // updates and deletes
+		http.StatusCreated,  // new account creation
+		http.StatusAccepted, // Let's Encrypt divergent implementation
+	))
+	if err != nil {
+		return &Account{}, err
+	}
+	defer res.Body.Close()
+
+	account := &Account{}
+	if err := json.NewDecoder(res.Body).Decode(&account); err != nil {
+		return account, err
+	}
+
+	return account, nil
+}
+
 func (c *ACME) UpdateAccount(ctx context.Context, contact []string) (*Account, error) {
 	req := struct {
 		Contact              []string `json:"contact,omitempty"`
@@ -180,6 +204,51 @@ func (c *ACME) UpdateAccount(ctx context.Context, contact []string) (*Account, e
 	}
 
 	return account, nil
+}
+
+func (c *ACME) NewOrder(ctx context.Context, domains []string) (*Order, error) {
+	// check account already exist
+	_, err := c.FetchAccountURL(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// apply order: add domain identifier which need by authorization
+	var identifiers []Identifier
+	for _, domain := range domains {
+		identifiers = append(identifiers, Identifier{Type: "dns", Value: domain})
+	}
+
+	req := struct {
+		Identifiers []Identifier `json:"identifiers"`
+	}{
+		Identifiers: identifiers,
+	}
+
+	res, err := c.post(ctx, c.Kid, c.Key, c.Dir.NewOrder, req, wantStatus(
+		http.StatusOK,       // updates and deletes
+		http.StatusCreated,  // new account creation
+		http.StatusAccepted, // Let's Encrypt divergent implementation
+	))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	order := &Order{}
+
+	if err := util.DecodeResponse(res, &order); err != nil {
+		return order, err
+	}
+
+	return order, nil
+}
+
+func (c *ACME) Authorization(ctx context.Context, order *Order) (*Authorization, error) {
+	if order.Status != "pending" {
+		return nil, errors.Errorf("order status '%s' is invalid, should be pending", order.Status)
+	}
+	return nil, nil
 }
 
 // popNonce returns a nonce value previously stored with c.addNonce
