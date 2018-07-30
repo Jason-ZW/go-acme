@@ -27,10 +27,19 @@ func main() {
 
 	logrus.Infof("acme account initialize success. ACME Account Info: %v, KID: %s", account, a.Kid)
 
-	fetchAccount, err := a.FetchAccount(accountCtx)
+	accountURL, err := a.FetchAccountURL(accountCtx)
 	if err != nil {
 		logrus.Fatalf("fetch account error, reason: %v", err)
 	}
 
-	logrus.Infof("acme account initialize success. ACME Account Info: %v, KID: %s", fetchAccount, a.Kid)
+	logrus.Infof("acme account initialize success. ACME Account URL: %s, KID: %s", accountURL, a.Kid)
+
+	contact = append(contact, "mailto:30165220@rancher.com")
+	accountUpdate, err := a.UpdateAccount(accountCtx, contact)
+	if err != nil {
+		logrus.Fatalf("update account error, reason: %v", err)
+	}
+
+	logrus.Infof("acme account initialize success. ACME Account Info: %v, KID: %s", accountUpdate, a.Kid)
+
 }
