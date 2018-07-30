@@ -97,8 +97,8 @@ func GenerateKey(path string, k *ecdsa.PrivateKey) error {
 	return f.Close()
 }
 
-func GeneratePEM(path string, data string) error {
-	if err := ioutil.WriteFile(path, []byte(data), 0644); err != nil {
+func GeneratePEM(path string, data []byte) error {
+	if err := ioutil.WriteFile(path, data, 0644); err != nil {
 		return err
 	}
 	return nil

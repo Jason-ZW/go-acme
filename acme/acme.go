@@ -10,7 +10,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -318,8 +320,49 @@ func (c *ACME) Finalize(ctx context.Context, order *Order, oid string, domains [
 	}
 
 	// save to /etc/go-acme/<domain>/
+	bytes, err := c.FetchCertificate(ctx, orderFetch.Certificate)
+	if err != nil {
+		return err
+	}
 
-	return util.GeneratePEM(path+"/cert.crt", orderFetch.Certificate)
+	return util.GeneratePEM(path+"/cert.crt", bytes)
+}
+
+func (c *ACME) FetchCertificate(ctx context.Context, url string) ([]byte, error) {
+	res, err := c.get(ctx, url, wantStatus(http.StatusOK))
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	c.addNonce(res.Header)
+
+	return ioutil.ReadAll(res.Body)
+}
+
+func (c *ACME) RevokeCertificate(ctx context.Context, url string) (bool, error) {
+	req := struct {
+		Certificate string `json:"certificate"`
+		Reason      int    `json:"reason"`
+	}{
+		Certificate: url,
+		Reason:      4,
+	}
+
+	res, err := c.post(ctx, c.Kid, c.Key, url, req, wantStatus(
+		http.StatusOK,       // updates and deletes
+		http.StatusCreated,  // new account creation
+		http.StatusAccepted, // Let's Encrypt divergent implementation
+	))
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+
+	if res.Status == strconv.Itoa(http.StatusOK) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (c *ACME) Authorization(ctx context.Context, order *Order) (*Authorization, error) {
@@ -413,7 +456,7 @@ Press Enter to Continue`, domain, token)
 		return false
 	}
 
-	logrus.Infof("11111111 %s", challengeAccepted.Status)
+	logrus.Infof("acme: current challenge status is %s, wait for status to be valid", challengeAccepted.Status)
 
 	return true
 }

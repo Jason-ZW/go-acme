@@ -12,3 +12,6 @@ $ ssh-keygen -t rsa -b 4096 -C "<your email>" -f letsencrypt -N ''
 certSavePath: <which place you want to save certs>
 serverPrivateKeyPath: <your private key file path>
 ```
+
+## reference code:
+[crypto/acme](https://godoc.org/golang.org/x/crypto/acme)

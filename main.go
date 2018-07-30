@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"time"
+
 	"github.com/Jason-ZW/go-acme/acme"
 	"github.com/sirupsen/logrus"
-	"time"
 )
 
 func main() {
 	contact := []string{"mailto:zhenyang@rancher.com"}
-	domains := []string{"ff.api.lytall.com"}
+	domains := []string{"*.api.lytall.com"}
 
 	// Initialize ACME Client
 	a, err := acme.NewACMEClient("")
@@ -17,7 +18,7 @@ func main() {
 		logrus.Fatalf("new acme client error, reason: %v", err)
 	}
 
-	logrus.Infof("acme initialize success. ACME Directory Info: %v", a.Dir)
+	logrus.Infof("acme client initialize success. ACME Directory Info: %v", a.Dir)
 
 	// Create new ACME Account
 	accountCtx, accountCancel := context.WithTimeout(context.Background(), 1*time.Minute)
@@ -36,7 +37,7 @@ func main() {
 		logrus.Fatalf("fetch account error, reason: %v", err)
 	}
 
-	logrus.Infof("acme account initialize success. ACME Account URL: %s, KID: %s", accountURL, a.Kid)
+	logrus.Infof("acme account fetch success. ACME Account URL: %s, KID: %s", accountURL, a.Kid)
 
 	// Create new ACME Order
 	orderCtx, orderCancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -47,7 +48,7 @@ func main() {
 		logrus.Fatalf("new order error, reason: %v", err)
 	}
 
-	logrus.Infof("acme order initialize success. ACME Order Info: %v, KID: %s", order, a.Kid)
+	logrus.Infof("acme order initialize success. ACME Order Info: %v, OID: %s, KID: %s", order, oid, a.Kid)
 
 	// Authorization and Challenge
 	authorizationCtx, authorizationCancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -72,20 +73,26 @@ func main() {
 	logrus.Infof("acme finalize success. KID: %s", a.Kid)
 
 	// Fetch ACME Account with given URL, If has valid order Account will list them
-	accountFatch, err := a.FetchAccount(accountCtx, accountURL)
+	fetchAccountCtx, fetchAccountCancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer fetchAccountCancel()
+
+	accountFetch, err := a.FetchAccount(fetchAccountCtx, accountURL)
 	if err != nil {
 		logrus.Fatalf("fetch account with given url %s error, reason: %v", accountURL, err)
 	}
 
-	logrus.Infof("acme account fetch success. ACME Account Info: %v, KID: %s", accountFatch, a.Kid)
+	logrus.Infof("acme account fetch success. ACME Account Info: %v, KID: %s", accountFetch, a.Kid)
 
 	// Update ACME Account
+	updateAccountCtx, updateAccountCancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer updateAccountCancel()
+
 	contact = append(contact, "mailto:30165220@rancher.com")
-	accountUpdate, err := a.UpdateAccount(accountCtx, contact)
+	accountUpdate, err := a.UpdateAccount(updateAccountCtx, contact)
 	if err != nil {
 		logrus.Fatalf("update account error, reason: %v", err)
 	}
 
-	logrus.Infof("acme account initialize success. ACME Account Info: %v, KID: %s", accountUpdate, a.Kid)
+	logrus.Infof("acme account update success. ACME Account Info: %v, KID: %s", accountUpdate, a.Kid)
 
 }
